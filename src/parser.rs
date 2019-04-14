@@ -266,12 +266,8 @@ pub mod graph {
             }
 
             println!(
-                "Number of WayElement structs in highways: {highway_map_len}\n\
-                Number of NodeElement structs in highway_nodes: {highway_nodes_len}\n\
-                Number of NodeElement structs in nodes_map: {node_map_len}\n\
+                "Number of NodeElement structs in nodes_map: {node_map_len}\n\
                 Number of DirectedEdge structs in edge_map: {edge_map_len}",
-                highway_map_len = highways.len(),
-                highway_nodes_len = highway_nodes.len(),
                 node_map_len = node_map.len(),
                 edge_map_len = edge_map.len(),
             );
