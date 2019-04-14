@@ -1,7 +1,8 @@
 use std::env;
 use std::process;
 
-use osm_dijkstra_rs::Config;
+use osm_dijkstra_rs::config::Config;
+use osm_dijkstra_rs::run;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -21,7 +22,7 @@ fn main() {
         config.end_point,
     );
 
-    if let Err(e) = osm_dijkstra_rs::run(config) {
+    if let Err(e) = run(config) {
         eprintln!("Application error: {}", e);
         process::exit(1);
     }
