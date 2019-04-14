@@ -1,0 +1,8 @@
+[package]
+name = "osm_dijkstra_rs"
+version = "0.1.0"
+authors = ["Nils Krüger"]
+edition = "2018"
+
+[dependencies]
+quick-xml = "0.14.0"
