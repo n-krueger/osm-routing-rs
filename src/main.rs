@@ -1,7 +1,7 @@
 use std::env;
 use std::process;
 
-use osm_dijkstra_rs::config::Config;
+use osm_dijkstra_rs::Config;
 use osm_dijkstra_rs::run;
 
 fn main() {

@@ -1,12 +1,12 @@
 extern crate quick_xml;
 
-pub mod config;
-mod parser;
+mod config;
+mod geo;
 
 use std::error::Error;
 
-use config::Config;
-use parser::graph::Graph;
+pub use self::config::Config;
+use self::geo::graph::Graph;
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     println!(
