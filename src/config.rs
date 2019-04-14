@@ -1,5 +1,5 @@
 pub struct Config {
-    pub filename: String,
+    pub filepath: String,
     pub start_point: String,
     pub end_point: String,
 }
@@ -9,11 +9,11 @@ impl Config {
         if args.len() < 4 {
             Err("not enough arguments")
         } else {
-            let filename = args[1].clone();
+            let filepath = args[1].clone();
             let start_point = args[2].clone();
             let end_point = args[3].clone();
 
-            Ok(Config { filename, start_point, end_point })
+            Ok(Config { filepath, start_point, end_point })
         }
     }
 }

@@ -9,7 +9,7 @@ pub mod elements {
     }
 
     impl NodeElement {
-        pub fn new(e: &BytesStart) -> NodeElement {
+        pub fn from_bytes_start(e: &BytesStart) -> NodeElement {
             let fields = e.attributes()
                 .fold(
                     (None, None, None),
@@ -64,7 +64,7 @@ pub mod elements {
         }
     }
 
-    #[derive(Clone)]
+    #[derive(Clone, Eq, PartialEq, Hash)]
     pub struct WayElement {
         pub id: i64,
         pub is_highway: bool,
@@ -73,7 +73,7 @@ pub mod elements {
     }
 
     impl WayElement {
-        pub fn new(e: &BytesStart) -> WayElement {
+        pub fn from_bytes_start(e: &BytesStart) -> WayElement {
             let id = e
                 .attributes()
                 .filter_map(
@@ -145,7 +145,15 @@ pub mod elements {
 }
 
 pub mod graph {
+    use std::collections::HashMap;
+    use std::collections::HashSet;
+    use std::path::Path;
+
+    use quick_xml::events::Event;
+    use quick_xml::Reader;
+
     use super::elements::NodeElement;
+    use super::elements::WayElement;
 
     #[derive(Copy, Clone)]
     pub struct DirectedEdge {
@@ -155,13 +163,120 @@ pub mod graph {
     }
 
     impl DirectedEdge {
-        pub fn new(from: &NodeElement, to: &NodeElement) -> DirectedEdge {
+        pub fn from_node_elements(from: &NodeElement, to: &NodeElement) -> DirectedEdge {
             let distance = NodeElement::distance(from, to);
             DirectedEdge { from: from.id, to: to.id, distance }
         }
 
         pub fn reversed(&self) -> DirectedEdge {
             DirectedEdge { from: self.to, to: self.from, distance: self.distance }
+        }
+    }
+
+    pub struct Graph {
+        pub node_map: HashMap<i64, NodeElement>,
+        pub edge_map: HashMap<i64, DirectedEdge>,
+    }
+
+    impl Graph {
+        pub fn from_file<P: AsRef<Path>>(path: P) -> Graph {
+            let mut way_element: Option<WayElement> = None;
+
+            let mut highway_nodes: HashSet<i64> = HashSet::new();
+            let mut highways: HashSet<WayElement> = HashSet::new();
+            let mut node_map: HashMap<i64, NodeElement> = HashMap::new();
+
+            let mut reader = Reader::from_file(path).unwrap();
+            let mut buf = Vec::new();
+
+            println!("Reading OSM file... (this may take a while)");
+
+            loop {
+                match reader.read_event(&mut buf) {
+                    Ok(Event::Start(ref e)) => {
+                        if let b"way" = e.name() {
+                            match way_element {
+                                Some(_) => panic!("Found nested WayElement"),
+                                None => way_element = Some(WayElement::from_bytes_start(e)),
+                            }
+                        }
+                    },
+                    Ok(Event::Empty(ref e)) => {
+                        match way_element {
+                            Some(ref mut we) => {
+                                match e.name() {
+                                    b"nd" => {
+                                        we.handle_nd(&e);
+                                    },
+                                    b"tag" => {
+                                        we.handle_tag(&e);
+                                    },
+                                    _ => (),
+                                }
+                            },
+                            None => {
+                                if let b"node" = e.name() {
+                                    let node_element = NodeElement::from_bytes_start(&e);
+                                    node_map.insert(node_element.id, node_element);
+                                }
+                            }
+                        }
+                    }
+                    Ok(Event::End(ref e)) => {
+                        if let b"way" = e.name() {
+                            match way_element {
+                                Some(ref we) => {
+                                    if we.is_highway {
+                                        highway_nodes.extend(&we.nodes);
+                                        highways.insert(we.clone());
+                                    }
+
+                                    way_element = None;
+                                },
+                                None => panic!("WayElement closed without being opened"),
+                            }
+                        }
+                    },
+                    Ok(Event::Eof) => break,
+                    Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
+                    _ => (),
+                }
+
+                buf.clear();
+            }
+
+            node_map.retain(|k, _| highway_nodes.contains(k));
+
+            println!("Building directed graph...");
+            let mut edge_map: HashMap<i64, DirectedEdge> = HashMap::new();
+            for highway in &highways {
+                for i in 0..highway.nodes.len() - 1 {
+                    let from_opt = node_map.get(&highway.nodes[i]);
+                    let to_opt = node_map.get(&highway.nodes[i + 1]);
+
+                    if let (Some(from), Some(to)) = (from_opt, to_opt) {
+                        let directed_edge = DirectedEdge::from_node_elements(from, to);
+                        edge_map.insert(from.id, directed_edge);
+
+                        if !highway.is_oneway {
+                            edge_map.insert(to.id, directed_edge.reversed());
+                        }
+                    }
+                }
+            }
+
+            println!(
+                "Number of WayElement structs in highways: {highway_map_len}\n\
+                Number of NodeElement structs in highway_nodes: {highway_nodes_len}\n\
+                Number of NodeElement structs in nodes_map: {node_map_len}\n\
+                Number of DirectedEdge structs in edge_map: {edge_map_len}",
+                highway_map_len = highways.len(),
+                highway_nodes_len = highway_nodes.len(),
+                node_map_len = node_map.len(),
+                edge_map_len = edge_map.len(),
+            );
+
+            Graph { node_map, edge_map }
         }
     }
 }

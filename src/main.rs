@@ -13,15 +13,6 @@ fn main() {
         }
     );
 
-    println!(
-        "Filename: {}\n\
-        Start point: {}\n\
-        End point: {}",
-        config.filename,
-        config.start_point,
-        config.end_point,
-    );
-
     if let Err(e) = run(config) {
         eprintln!("Application error: {}", e);
         process::exit(1);
