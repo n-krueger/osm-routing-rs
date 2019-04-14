@@ -1,5 +1,5 @@
 [package]
-name = "osm_dijkstra_rs"
+name = "osm_routing_rs"
 version = "0.1.0"
 authors = ["Nils Krüger"]
 edition = "2018"

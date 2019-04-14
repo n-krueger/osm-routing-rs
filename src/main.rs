@@ -1,8 +1,8 @@
 use std::env;
 use std::process;
 
-use osm_dijkstra_rs::Config;
-use osm_dijkstra_rs::run;
+use osm_routing_rs::Config;
+use osm_routing_rs::run;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

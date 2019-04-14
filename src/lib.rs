@@ -2,6 +2,7 @@ extern crate quick_xml;
 
 mod config;
 mod geo;
+mod routing;
 
 use std::error::Error;
 
