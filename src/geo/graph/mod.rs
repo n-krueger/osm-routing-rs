@@ -10,15 +10,16 @@ use self::components::{Edge, Node, Way};
 
 pub struct Graph {
     pub id_to_node: HashMap<i64, Node>,
-    pub id_to_edges: HashMap<i64, Edge>,
+    pub id_to_edges: HashMap<i64, HashSet<Edge>>,
 }
 
 impl Graph {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Graph {
         let mut way_element: Option<Way> = None;
+        let mut node_element: Option<Node> = None;
 
         let mut highway_nodes: HashSet<i64> = HashSet::new();
-        let mut highways: HashSet<Way> = HashSet::new();
+        let mut highways: Vec<Way> = Vec::new();
         let mut id_to_node: HashMap<i64, Node> = HashMap::new();
 
         let mut reader = Reader::from_file(path).unwrap();
@@ -29,11 +30,20 @@ impl Graph {
         loop {
             match reader.read_event(&mut buf) {
                 Ok(Event::Start(ref e)) => {
-                    if let b"way" = e.name() {
-                        match way_element {
-                            Some(_) => panic!("Found nested WayElement"),
-                            None => way_element = Some(Way::from_bytes_start(e)),
-                        }
+                    match e.name() {
+                        b"way" => {
+                            match way_element {
+                                Some(_) => panic!("Found nested WayElement"),
+                                None => way_element = Some(Way::from_bytes_start(e)),
+                            }
+                        },
+                        b"node" => {
+                            match node_element {
+                                Some(_) => panic!("Found nested NodeElement"),
+                                None => node_element = Some(Node::from_bytes_start(e)),
+                            }
+                        },
+                        _ => (),
                     }
                 },
                 Ok(Event::Empty(ref e)) => {
@@ -58,18 +68,30 @@ impl Graph {
                     }
                 }
                 Ok(Event::End(ref e)) => {
-                    if let b"way" = e.name() {
-                        match way_element {
-                            Some(ref we) => {
-                                if we.is_highway {
-                                    highway_nodes.extend(&we.nodes);
-                                    highways.insert(we.clone());
-                                }
+                    match e.name() {
+                        b"way" => {
+                            match way_element {
+                                Some(ref we) => {
+                                    if we.is_road {
+                                        highway_nodes.extend(&we.nodes);
+                                        highways.push(we.clone());
+                                    }
 
-                                way_element = None;
-                            },
-                            None => panic!("WayElement closed without being opened"),
-                        }
+                                    way_element = None;
+                                },
+                                None => panic!("WayElement closed without being opened"),
+                            }
+                        },
+                        b"node" => {
+                            match node_element {
+                                Some(ref ne) => {
+                                    id_to_node.insert(ne.id, ne.clone());
+                                    node_element = None;
+                                },
+                                None => panic!("NodeElement closed without being opened"),
+                            }
+                        },
+                        _ => (),
                     }
                 },
                 Ok(Event::Eof) => break,
@@ -83,18 +105,27 @@ impl Graph {
         id_to_node.retain(|k, _| highway_nodes.contains(k));
 
         println!("Building directed graph...");
-        let mut id_to_edges: HashMap<i64, Edge> = HashMap::new();
-        for highway in &highways {
-            for i in 0..highway.nodes.len() - 1 {
-                let from_opt = id_to_node.get(&highway.nodes[i]);
-                let to_opt = id_to_node.get(&highway.nodes[i + 1]);
+        let mut id_to_edges: HashMap<i64, HashSet<Edge>> = HashMap::new();
+        for highway in highways.iter_mut() {
+            highway.nodes.retain(|id| id_to_node.contains_key(id));
+            if !highway.nodes.is_empty() {
+                for i in 0..highway.nodes.len() - 1 {
+                    let from_opt = id_to_node.get(&highway.nodes[i]);
+                    let to_opt = id_to_node.get(&highway.nodes[i + 1]);
 
-                if let (Some(from), Some(to)) = (from_opt, to_opt) {
-                    let directed_edge = Edge::from_node_elements(from, to);
-                    id_to_edges.insert(from.id, directed_edge);
+                    if let (Some(from), Some(to)) = (from_opt, to_opt) {
+                        let edge = Edge::from_node_elements(from, to);
+                        let from_connected = id_to_edges
+                            .entry(from.id)
+                            .or_insert_with(HashSet::new);
+                        from_connected.insert(edge);
 
-                    if !highway.is_oneway {
-                        id_to_edges.insert(to.id, directed_edge.reversed());
+                        if !highway.is_oneway {
+                            let to_connected = id_to_edges
+                                .entry(to.id)
+                                .or_insert_with(HashSet::new);
+                            to_connected.insert(edge.reversed());
+                        }
                     }
                 }
             }

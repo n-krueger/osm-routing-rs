@@ -4,5 +4,5 @@ pub trait Location {
 }
 
 pub trait Distance {
-    fn distance<T: Location>(&self, other: &T) -> f64;
+    fn distance<T: Location>(&self, other: &T) -> u64;
 }

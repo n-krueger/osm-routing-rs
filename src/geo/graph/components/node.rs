@@ -3,7 +3,7 @@ use quick_xml::events::BytesStart;
 use crate::geo;
 use crate::geo::traits::{Location, Distance};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Node {
     pub id: i64,
     pub lat: f64,
@@ -60,8 +60,24 @@ impl Location for Node {
     }
 }
 
+impl Location for &Node {
+    fn lat(&self) -> f64 {
+        self.lat
+    }
+
+    fn lon(&self) -> f64 {
+        self.lon
+    }
+}
+
 impl Distance for Node {
-    fn distance<T: Location>(&self, other: &T) -> f64 {
+    fn distance<T: Location>(&self, other: &T) -> u64 {
+        geo::distance(self, other)
+    }
+}
+
+impl Distance for &Node {
+    fn distance<T: Location>(&self, other: &T) -> u64 {
         geo::distance(self, other)
     }
 }

@@ -3,7 +3,7 @@ use quick_xml::events::BytesStart;
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Way {
     pub id: i64,
-    pub is_highway: bool,
+    pub is_road: bool,
     pub is_oneway: bool,
     pub nodes: Vec<i64>,
 }
@@ -29,11 +29,11 @@ impl Way {
             )
             .next()
             .expect("WayElement has no id attribute");
-        let is_highway = false;
+        let is_road = false;
         let is_oneway = false;
         let nodes = Vec::new();
 
-        Way { id, is_highway, is_oneway, nodes }
+        Way { id, is_road, is_oneway, nodes }
     }
 
     pub fn handle_nd(&mut self, e: &BytesStart) {
@@ -58,23 +58,42 @@ impl Way {
     }
 
     pub fn handle_tag(&mut self, e: &BytesStart) {
-        if !self.is_highway {
-            self.is_highway = e.attributes()
+        if !self.is_road {
+            self.is_road = e.attributes()
                 .filter_map(
                     |result| {
                         let attribute = result.unwrap();
-                        if attribute.key == b"k" {
-                            if &*attribute.value == b"highway" {
-                                Some(true)
-                            } else {
-                                Some(false)
-                            }
-                        } else {
-                            None
+                        match attribute.key {
+                            b"k" => {
+                                if &*attribute.value == b"highway" {
+                                    Some(true)
+                                } else {
+                                    Some(false)
+                                }
+                            },
+                            b"v" => {
+                                match &*attribute.value {
+                                    b"motorway"
+                                    | b"trunk"
+                                    | b"primary"
+                                    | b"secondary"
+                                    | b"tertiary"
+                                    | b"unclassified"
+                                    | b"residential"
+                                    | b"motorway_link"
+                                    | b"trunk_link"
+                                    | b"primary_link"
+                                    | b"secondary_link"
+                                    | b"tertiary_link"
+                                    | b"road" => Some(true),
+                                    _ => Some(false)
+                                }
+                            },
+                            _ => None,
                         }
                     }
                 )
-                .any(|is_highway_tag| is_highway_tag);
+                .all(|correct| correct);
         }
     }
 }
