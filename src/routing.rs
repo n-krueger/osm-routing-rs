@@ -39,15 +39,18 @@ pub fn route(graph: &Graph, start_coords: &Coordinates, end_coords: &Coordinates
         |node| { end_coords.distance(node) }
     ).unwrap().id;
 
+    let mut closed_set: HashSet<i64> = HashSet::new();
+    let mut g_score: HashMap<i64, u64> = HashMap::new();
+    let mut open_set: BinaryHeap<MinHeapElement> = BinaryHeap::new();
+    let mut father: HashMap<i64, i64> = HashMap::new();
+
+    let mut route: Option<Vec<i64>> = None;
+
     let heuristic = |id| {
         let u = &graph.id_to_node[&id];
         let v = &graph.id_to_node[&end];
         u.distance(v)
     };
-
-    let mut closed_set: HashSet<i64> = HashSet::new();
-    let mut open_set: BinaryHeap<MinHeapElement> = BinaryHeap::new();
-    let mut father: HashMap<i64, i64> = HashMap::new();
 
     let retrace = |id: i64, prevs: &HashMap<i64, i64>| {
         let mut path: Vec<i64> = vec![id];
@@ -69,52 +72,47 @@ pub fn route(graph: &Graph, start_coords: &Coordinates, end_coords: &Coordinates
         path
     };
 
-    let mut g_score: HashMap<i64, u64> = HashMap::new();
     g_score.insert(start, 0);
-
     open_set.push(MinHeapElement { id: start, f_score: heuristic(start) });
 
     while !open_set.is_empty() {
         let current = open_set.pop().unwrap();
-        if current.id == end {
-            return retrace(current.id, &father);
-        } else {
-            closed_set.insert(current.id);
+        closed_set.insert(current.id);
 
-            for edge in graph.id_to_edges
-                .get(&current.id)
-                .unwrap_or(&HashSet::new())
-                .iter() {
-                if !closed_set.contains(&edge.to) {
-                    let tentative_g_score = g_score[&current.id] + edge.distance;
-                    match g_score.get(&edge.to) {
-                        Some(neighbor_g_score) => {
-                            if tentative_g_score < *neighbor_g_score {
-                                g_score.insert(edge.to, tentative_g_score);
-                                open_set.push(
-                                    MinHeapElement {
-                                        id: edge.to,
-                                        f_score: tentative_g_score + heuristic(edge.to),
-                                    }
-                                );
-                                father.insert(edge.to, current.id);
-                            }
-                        },
-                        None => {
-                            g_score.insert(edge.to, tentative_g_score);
-                            open_set.push(
-                                MinHeapElement {
-                                    id: edge.to,
-                                    f_score: tentative_g_score + heuristic(edge.to),
-                                }
-                            );
-                            father.insert(edge.to, current.id);
+        if current.id == end {
+            route = Some(retrace(current.id, &father));
+        } else if let Some(edges) = graph.id_to_edges.get(&current.id) {
+            let open_edges = edges
+                .iter()
+                .filter(|edge| !closed_set.contains(&edge.to));
+            for edge in open_edges {
+                let tentative_g_score = g_score[&current.id] + edge.distance;
+
+                let mut update_scores =
+                    |g_score: &mut HashMap<i64, u64>| {
+                    g_score.insert(edge.to, tentative_g_score);
+                    open_set.push(
+                        MinHeapElement {
+                            id: edge.to,
+                            f_score: tentative_g_score + heuristic(edge.to),
                         }
+                    );
+                    father.insert(edge.to, current.id);
+                };
+
+                match g_score.get(&edge.to) {
+                    Some(neighbor_g_score) => {
+                        if tentative_g_score < *neighbor_g_score {
+                            update_scores(&mut g_score);
+                        }
+                    },
+                    None => {
+                        update_scores(&mut g_score);
                     }
                 }
             }
         }
     }
 
-    panic!("No route found")
+    route.expect("No route found")
 }
